@@ -1,0 +1,59 @@
+service: aws-node-express-api-project
+frameworkVersion: "3"
+
+custom:
+  env: ${file(./env.yml)}
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: ${opt:stage, 'dev'}
+  region: ap-south-1
+  environment:
+    ACCESS_KEY: ${self:custom.env.ACCESS_KEY}
+    SECRET_KEY: ${self:custom.env.SECRET_KEY}
+    MY_TEST_QUEUE_URL:
+      Ref: TestQueue
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - sqs:sendMessage
+          Resource:
+            - Fn::GetAtt: [ TestQueue, Arn ]
+
+plugins:
+  - serverless-offline
+
+functions:
+  api:
+    handler: handler.handler
+    events:
+      - http:
+          path: /me
+          method: get
+      - http:
+          path: /user-listing
+          method: get
+  queueSender:
+    handler: sender.handler
+    events:
+      - http:
+          path: /send-message-in-queue
+          method: post
+  queueReceiver:
+    handler: receiver.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - TestQueue
+              - Arn
+
+resources:
+  Resources:
+    TestQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: testQueue-${self:provider.stage}
